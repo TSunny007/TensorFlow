@@ -63,7 +63,7 @@ def cnn_model_fn(features, labels, mode):
     # Input Tensor Shape: [batch_size, 14, 14, 32]
     # Output Tensor Shape: [batch_size, 14, 14, 64]
     conv2 = tf.layers.conv2d (
-            input=pool1,
+            inputs=pool1,
             filters=64,
             kernel_size=[5,5],
             padding="same",
@@ -73,7 +73,7 @@ def cnn_model_fn(features, labels, mode):
     # Second max pooling layer with a 2x2 filter and stride of 2
     # Input Tensor Shape: [batch_size, 14, 14, 64]
     # Output Tensor Shape: [batch_size, 7, 7, 64]
-    pool2 = tf.layers.maz_poolin2d(inputs=conv2d, pool_size=[2,2], strides=2)
+    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2,2], strides=2)
     
     # Flatten tensor into a batch of vectors
     # Input Tensor Shape: [batch_size, 7, 7, 64]
@@ -88,7 +88,7 @@ def cnn_model_fn(features, labels, mode):
     
     # Add dropout operation; 0.6 probability that element will be kept
     dropout = tf.layers.dropout(
-            input=dense, rate=0.4, training_mode == tf.estimator.ModeKeys.TRAIN)
+            inputs=dense, rate=0.4, training=mode == tf.estimator.ModeKeys.TRAIN)
     
     # Logits Layer
     logits = tf.layers.dense(inputs=dropout,units=10)
@@ -98,7 +98,7 @@ def cnn_model_fn(features, labels, mode):
         "classes": tf.argmax(input=logits,axis=1),
         # Add `softmax_tensor` to the graph. It is used for PREDICT and by the
         # `logging_hook`
-        "probabilities": tf.mm.softmax(logits, name="softmax_tensor")}
+        "probabilities": tf.nn.softmax(logits, name="softmax_tensor")}
     
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
@@ -111,34 +111,34 @@ def cnn_model_fn(features, labels, mode):
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
         train_op = optimizer.minimize(
                 loss=loss,
-                global_step=tf.get_global_step())
+                global_step=tf.train.get_global_step())
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
     
     # Add evaluation metrics (for EVAL mode)
     eval_metric_ops = {
             "accuracy": tf.metrics.accuracy (
-                    labels=labels, predictions["classes"])}
+                    labels=labels, predictions=predictions["classes"])}
     return tf.estimator.EstimatorSpec(
             mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)  
 ###################################################################################
 
 def main(arg):
         # Load training and eval data
-        minst = tf.contrib.learn.datasets.load_dataset("mnist")
-        train_data=minst.train.labels.images # np.array
-        train_labels = np.asarray(mnist.train.labels, dtype=int32)
+        mnist = tf.contrib.learn.datasets.load_dataset("mnist")
+        train_data=mnist.train.labels.images # np.array
+        train_labels = np.asarray(mnist.train.labels, dtype=np.int32)
         eval_data = mnist.test.images # np.array
         eval_labels=np.asarray(mnist.test.labels, dtype=np.int32)
         
         # Create the Estimator
         mnist_classifier = tf.estimator.Estimator(
                 model_fn= cnn_model_fn, model_dir="/tmp/mnist_convnet_model")
-                
+
         # Set up logging for predictions
-        # Log the values in the "Softmac" tensor with the label "probabilities"
+        # Log the values in the "Softmax" tensor with the label "probabilities"
         tensors_to_log = {"probabilities": "softmax_tensor"}
         logging_hook = tf.train.LoggingTensorHook(
-                tensors=tensors_to_log, every_n_iter
+                tensors=tensors_to_log, every_n_iter=50
         )
 
         # Train the model
@@ -158,7 +158,7 @@ def main(arg):
         eval_input_fn = tf.estimator.inputs.numpy_input_fn(
                 x={"x": eval_data},
                 y=eval_labels,
-                num_epochs=1
+                num_epochs=1,
                 shuffle=False)
         eval_results = mnist_classifier.evaluate(input_fn=eval_input_fn)
         print(eval_results)
