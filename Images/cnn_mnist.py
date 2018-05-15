@@ -35,9 +35,15 @@ tf.logging.set_verbosity(tf.logging.INFO)
 def cnn_model_fn(features, labels, mode):
     """ Model funtion for CNN. """
     # Input layer #1
+    # Reshape X to 4-D tensor: [batch_size, width, height, channels]
+    # MINST images are 28x28 pizels, have one color channel
     input_layer = tf.reshape(features["x"], [-1,28,28,1]) # Batch size, image_height, image_width, channels (monochrome=1)
     
     # Convolutional Layer #1
+    # COmputes 32 features using a 5x5 filter with ReLU activation.
+    # Padding is added to preserve width and height
+    # Input Tensor Shape: [batch_size, 28,28, 1]
+    # Output Tensor Shape: [batch_size, 28, 28, 32]
     conv1 = tf.layers.conv2d (
             inputs=input_layer,
             filters=32,
@@ -46,20 +52,41 @@ def cnn_model_fn(features, labels, mode):
             activation=tf.nn.relu)
     
     # Pooling Layer #1
+    # First max pooling layer with a 2x2 filter and stride of 2
+    # Input Tensor Shape: [batch_size, 28,28,32]
+    # Output Tensor Shape: [batch_size, 14, 14, 632]
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size[2,2], strides=2)
     
-    # Convolutional Layer #2 and Pooling Layer #2
+    # Convolutional Layer #2
+    # Computes 64 features using a 5x5 filter. 
+    # Padding is added to preserve width and height.
+    # Input Tensor Shape: [batch_size, 14, 14, 32]
+    # Output Tensor Shape: [batch_size, 14, 14, 64]
     conv2 = tf.layers.conv2d (
             input=pool1,
             filters=64,
             kernel_size=[5,5],
             padding="same",
             activation=tf.nn.relu)
+
+    #Poolin Layer #2
+    # Second max pooling layer with a 2x2 filter and stride of 2
+    # Input Tensor Shape: [batch_size, 14, 14, 64]
+    # Output Tensor Shape: [batch_size, 7, 7, 64]
     pool2 = tf.layers.maz_poolin2d(inputs=conv2d, pool_size=[2,2], strides=2)
     
-     # Dense Layer
+    # Flatten tensor into a batch of vectors
+    # Input Tensor Shape: [batch_size, 7, 7, 64]
+    # Output Tensor Shape: [batch_size, 7 * 7 * 64]
     pool2_flat = tf.reshape(pool2, [-1,7 * 7 * 64])
+    
+    # Dense Layer 
+    # Densely connected layer with 1024 neurons
+    # Input Tensor Shape: [batch_size, 7 * 7 * 64]
+    # Output Tensor Shape: [batch_size, 1024]
     dense = tf.layers.dense(inputs=pool2_flat, units=1024, activation=tf.nn.relu)
+    
+    # Add dropout operation; 0.6 probability that element will be kept
     dropout = tf.layers.dropout(
             input=dense, rate=0.4, training_mode == tf.estimator.ModeKeys.TRAIN)
     
@@ -71,33 +98,27 @@ def cnn_model_fn(features, labels, mode):
         "classes": tf.argmax(input=logits,axis=1),
         # Add `softmax_tensor` to the graph. It is used for PREDICT and by the
         # `logging_hook`
-        "probabilities": tf.mm.softmax(logits, name="softmax_tensor")
-            }
+        "probabilities": tf.mm.softmax(logits, name="softmax_tensor")}
     
     if mode == tf.estimator.ModeKeys.PREDICT:
-        return estimator.EstimatorSpec(labels=labels, logits=logits)
+        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
     
-    # One hot encode the results [1, 9, ...] -> 
-    #[[0, 1, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 1], ...]
     # Calculate Loss (for both TRAIN and EVAL modes)
-    
-    onehot_labels = tf.one_hot(indecies=tf.cast(labels, tf.int32), depth=10)
-    loss = tf.losses.sparse_softmax_cross_entropy(onehot_labels=onehot_labels, logits=logits)
-    
-    # Configuring the training Op (for TRAIN mode)
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+
+    # Configuring the Training Op (for TRAIN mode)
     if mode == tf.estimator.ModeKeys.TRAIN:
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
         train_op = optimizer.minimize(
                 loss=loss,
                 global_step=tf.get_global_step())
-        return tf.estimator.EstimatorSpec(mode=mode. loss=loss, train_op=train_op)
+        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
     
-    # Configure the Training Op (for TRAIN mode)
+    # Add evaluation metrics (for EVAL mode)
     eval_metric_ops = {
             "accuracy": tf.metrics.accuracy (
                     labels=labels, predictions["classes"])}
     return tf.estimator.EstimatorSpec(
-            mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
-    
+            mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)  
 if __name__ == "__main__":
     tf.app.run()
