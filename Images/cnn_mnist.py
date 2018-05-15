@@ -6,6 +6,7 @@ from __future__ import print_function
 import numpy as np 
 import tensorflow as tf
 
+# {'accuracy': 0.96969998, 'loss': 0.10314358, 'global_step': 20000}
 
 # Convolutional neural networks (CNNs) are the current state-of-the-art model architecture for image classification tasks. 
 # CNNs apply a series of filters to the raw pixel data of an image to extract and learn higher-level features, 
